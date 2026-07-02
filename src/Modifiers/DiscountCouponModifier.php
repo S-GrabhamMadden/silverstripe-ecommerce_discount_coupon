@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sunnysideup\EcommerceDiscountCoupon\Modifiers;
 
+use Sunnysideup\Ecommerce\Model\Order;
 use SilverStripe\Control\Controller;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\FormAction;
@@ -23,10 +24,15 @@ use Sunnysideup\EcommerceDiscountCoupon\Model\DiscountCouponOption;
 class DiscountCouponModifier extends OrderModifier
 {
     protected ?float $actualDeductions = null;
+
     protected ?float $calculatedTotal = null;
+
     protected array $applicableProductsByCouponId = [];
+
     protected array $subTotalsByCouponId = [];
+
     protected array $maximumDeductionCapsByCouponId = [];
+
     protected array $discountedProductIds = [];
 
     /**
@@ -69,8 +75,11 @@ class DiscountCouponModifier extends OrderModifier
     ];
 
     private static bool $include_modifiers_in_subtotal = false;
+
     private static string $exclude_buyable_method = 'ExcludeInDiscountCalculation';
+
     private static string $singular_name = 'Discount Coupon Entry';
+
     private static string $plural_name = 'Discount Coupon Entries';
 
     // -------------------------------------------------------------------------
@@ -82,7 +91,7 @@ class DiscountCouponModifier extends OrderModifier
         return _t('DiscountCouponModifier.SINGULAR_NAME', 'Discount Coupon Entry');
     }
 
-    public function i18n_plural_name(): string
+    public function plural_name(): string
     {
         return _t('DiscountCouponModifier.PLURAL_NAME', 'Discount Coupon Entries');
     }
@@ -97,11 +106,7 @@ class DiscountCouponModifier extends OrderModifier
         $fields->removeByName(['OrderCoupon', 'OtherApplicableDiscountCouponOptions']);
 
         if ((bool) $this->config()->get('debug')) {
-            $fields->addFieldToTab('Root.Debug', new ReadonlyField(
-                'DebugStringShown',
-                _t('DiscountCouponModifier.DEBUG_STRING', 'debug string'),
-                $this->DebugString
-            ));
+            $fields->addFieldToTab('Root.Debug', ReadonlyField::create('DebugStringShown', _t('DiscountCouponModifier.DEBUG_STRING', 'debug string'), $this->DebugString));
         } else {
             $fields->removeByName('DebugString');
         }
@@ -127,22 +132,16 @@ class DiscountCouponModifier extends OrderModifier
     public function ShowForm(): bool
     {
         $order = $this->getOrderCached();
-        return $order !== null && (bool) $order->getTotalItems();
+        return $order instanceof Order && (bool) $order->getTotalItems();
     }
 
     public function getModifierForm(?Controller $optionalController = null, ?Validator $optionalValidator = null): DiscountCouponModifierForm
     {
-        $fields = new FieldList(
-            $this->headingField(),
-            $this->descriptionField(),
-            new TextField('DiscountCouponCode', _t('DiscountCouponModifier.COUPON', 'Coupon'), $this->LiveCouponCodeEntered())
-        );
+        $fields = FieldList::create($this->headingField(), $this->descriptionField(), TextField::create('DiscountCouponCode', _t('DiscountCouponModifier.COUPON', 'Coupon'), $this->LiveCouponCodeEntered()));
 
-        $actions = new FieldList(
-            new FormAction('submit', _t('DiscountCouponModifier.APPLY', 'Apply Coupon'))
-        );
+        $actions = FieldList::create(FormAction::create('submit', _t('DiscountCouponModifier.APPLY', 'Apply Coupon')));
 
-        $form = new DiscountCouponModifierForm($optionalController, 'DiscountCouponModifier', $fields, $actions, $optionalValidator);
+        $form = DiscountCouponModifierForm::create($optionalController, 'DiscountCouponModifier', $fields, $actions, $optionalValidator);
 
         $couponField = $fields->fieldByName('DiscountCouponCode');
         if ($couponField) {
@@ -201,7 +200,7 @@ class DiscountCouponModifier extends OrderModifier
     public function ShowInTable(): bool
     {
         $order = $this->getOrderCached();
-        return $order ? !$order->IsSubmitted() : false;
+        return $order instanceof Order ? !$order->IsSubmitted() : false;
     }
 
     public function CanRemove(): bool
@@ -265,7 +264,7 @@ class DiscountCouponModifier extends OrderModifier
 
         $order = $this->getOrderCached();
 
-        if (!$order) {
+        if (!$order instanceof Order) {
             return $this->itemRows = [];
         }
 
@@ -386,9 +385,10 @@ class DiscountCouponModifier extends OrderModifier
             }
 
             if ($coupon->ApplyPercentageToApplicableProducts) {
-                if (count($this->applicableProductsArray($coupon)) > 0) {
+                if ($this->applicableProductsArray($coupon) !== []) {
                     $array[] = $coupon;
                 }
+
                 continue;
             }
 
@@ -418,7 +418,7 @@ class DiscountCouponModifier extends OrderModifier
 
         $order = $this->getOrderCached();
 
-        if (!$order) {
+        if (!$order instanceof Order) {
             return $this->applicableProductsByCouponId[$couponId] = [];
         }
 
@@ -467,7 +467,7 @@ class DiscountCouponModifier extends OrderModifier
         $code    = trim((string) $this->LiveCouponCodeEntered());
         $coupons = $this->myDiscountCouponOptions();
 
-        if (count($coupons) > 0) {
+        if ($coupons !== []) {
             $messages = array_map(
                 fn($c) => _t('DiscountCouponModifier.COUPON', 'Coupon') . ' ' . $c->Title . ' ' . _t('DiscountCouponModifier.APPLIED', 'applied.'),
                 $coupons
@@ -476,7 +476,7 @@ class DiscountCouponModifier extends OrderModifier
         }
 
         if ($code !== '') {
-            return _t('DiscountCouponModifier.COUPON', 'Coupon') . " '$code' " . _t('DiscountCouponModifier.COULDNOTBEAPPLIED', 'could not be applied.');
+            return _t('DiscountCouponModifier.COUPON', 'Coupon') . sprintf(" '%s' ", $code) . _t('DiscountCouponModifier.COULDNOTBEAPPLIED', 'could not be applied.');
         }
 
         return _t('DiscountCouponModifier.NOCOUPONENTERED', 'No (valid) coupon entered');
@@ -490,7 +490,7 @@ class DiscountCouponModifier extends OrderModifier
         }
 
         $order = $this->getOrderCached();
-        if (!$order) {
+        if (!$order instanceof Order) {
             return [];
         }
 
@@ -534,7 +534,7 @@ class DiscountCouponModifier extends OrderModifier
         $this->recordDebug('starting score: ' . $this->actualDeductions, true);
 
         $order = $this->getOrderCached();
-        if (!$order) {
+        if (!$order instanceof Order) {
             return 0.0;
         }
 
@@ -632,7 +632,7 @@ class DiscountCouponModifier extends OrderModifier
         $order = $this->getOrderCached();
         $newData = [];
 
-        if (!$order) {
+        if (!$order instanceof Order) {
             return $newData;
         }
 
@@ -656,7 +656,7 @@ class DiscountCouponModifier extends OrderModifier
                 }
 
                 $mustExists = $coupon->OtherProductInOrderProducts()->columnUnique();
-                if (count(array_intersect($mustExists, $productsInOrder)) > 0) {
+                if (array_intersect($mustExists, $productsInOrder) !== []) {
                     $newData[$couponId] = $couponId;
                 }
             }
@@ -680,6 +680,7 @@ class DiscountCouponModifier extends OrderModifier
                     $this->discountedProductIds[$productId] = $productId;
                 }
             }
+
             return;
         }
 
@@ -708,7 +709,7 @@ class DiscountCouponModifier extends OrderModifier
     protected function applicableQuantityForCoupon(DiscountCouponOption $coupon): int
     {
         $order = $this->getOrderCached();
-        if (!$order) {
+        if (!$order instanceof Order) {
             return 0;
         }
 
@@ -727,11 +728,14 @@ class DiscountCouponModifier extends OrderModifier
                 if (!isset($applicableItemIds[$itemId])) {
                     continue;
                 }
+
                 if ($row['productId'] > 0 && in_array($row['productId'], $excludeProductIds, true)) {
                     continue;
                 }
+
                 $qty += $row['qty'];
             }
+
             return $qty;
         }
 
@@ -745,6 +749,7 @@ class DiscountCouponModifier extends OrderModifier
             if ($remainingDiscountedQty <= 0) {
                 break;
             }
+
             $qtyToDiscount = min($row['qty'], $remainingDiscountedQty);
             $discountedQty         += $qtyToDiscount;
             $remainingDiscountedQty -= $qtyToDiscount;
@@ -772,11 +777,14 @@ class DiscountCouponModifier extends OrderModifier
                 if (!isset($applicableItemIds[$itemId])) {
                     continue;
                 }
+
                 if ($row['productId'] > 0 && in_array($row['productId'], $excludeProductIds, true)) {
                     continue;
                 }
+
                 $subTotal += (float) $row['item']->TotalForDiscount();
             }
+
             return max(0.0, $subTotal);
         }
 
@@ -790,6 +798,7 @@ class DiscountCouponModifier extends OrderModifier
             if ($remainingDiscountedQty <= 0) {
                 break;
             }
+
             $qtyToDiscount = min($row['qty'], $remainingDiscountedQty);
             $subTotal              += $row['lineTotal'] * ($qtyToDiscount / $row['qty']);
             $remainingDiscountedQty -= $qtyToDiscount;

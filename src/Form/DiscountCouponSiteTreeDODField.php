@@ -24,17 +24,22 @@ class DiscountCouponSiteTreeDODField extends TreeMultiselectField
             $fieldName = $this->name;
 
             if ($this->value) {
+                /**
+                 * @deprecated FormField::Value() has been deprecated. It will be replaced by getFormattedValue() and getValue().
+                 * See: https://docs.silverstripe.org/en/5/changelogs/5.4.0/#deprecated-api
+                 */
                 $items = preg_split('# *, *#', trim((string) $this->value));
             }
 
             // Allows you to modify the items on your object before save
-            $funcName = "onChange{$fieldName}";
+            $funcName = 'onChange' . $fieldName;
             if ($myRecord->hasMethod($funcName)) {
                 $result = $record->{$funcName}($items);
                 if (! $result) {
                     return;
                 }
             }
+
             $schema = $myRecord->getSchema();
             if ($fieldName && ($schema->hasManyComponent($record->ClassName, $fieldName) || $schema->manyManyComponent($record->ClassName, $fieldName))) {
                 // Set related records

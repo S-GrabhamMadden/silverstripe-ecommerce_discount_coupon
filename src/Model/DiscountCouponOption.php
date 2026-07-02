@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Sunnysideup\EcommerceDiscountCoupon\Model;
 
+use SilverStripe\ORM\ManyManyList;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\HeaderField;
@@ -21,7 +22,6 @@ use Sunnysideup\Ecommerce\Model\Extensions\EcommerceRole;
 use Sunnysideup\Ecommerce\Pages\Product;
 use Sunnysideup\Ecommerce\Pages\ProductGroup;
 use Sunnysideup\EcommerceCustomProductLists\Model\CustomProductList;
-use Sunnysideup\EcommerceCustomProductLists\Model\CustomProductLists;
 use Sunnysideup\EcommerceDiscountCoupon\Modifiers\DiscountCouponModifier;
 use Sunnysideup\EcommerceDiscountCoupon\Search\DiscountCouponFilterForDate;
 
@@ -40,9 +40,9 @@ use Sunnysideup\EcommerceDiscountCoupon\Search\DiscountCouponFilterForDate;
  * @property float $DiscountAbsolute
  * @property float $DiscountPercentage
  * @property float $MinimumOrderSubTotalValue
- * @method \SilverStripe\ORM\ManyManyList|\Sunnysideup\Ecommerce\Pages\Product[] Products()
- * @method \SilverStripe\ORM\ManyManyList|\Sunnysideup\Ecommerce\Pages\ProductGroup[] ProductGroups()
- * @method \SilverStripe\ORM\ManyManyList|\Sunnysideup\Ecommerce\Pages\ProductGroup[] ProductGroupsMustAlsoBePresentIn()
+ * @method ManyManyList|Product[] Products()
+ * @method ManyManyList|ProductGroup[] ProductGroups()
+ * @method ManyManyList|ProductGroup[] ProductGroupsMustAlsoBePresentIn()
  */
 class DiscountCouponOption extends DataObject
 {
@@ -197,7 +197,7 @@ class DiscountCouponOption extends DataObject
         'CustomProductListsMustAlsoBePresentIn' => 'Select cross-reference listing custom product lists - e.g. products that are in the Large Items category and Expensive Items category will have a discount.',
         // another product in Order in ...
         'ProductCombinationRatio' => 'For example, if the ratio is 2, then for every 2 products in the Discounted Products list, there must be 1 product in the "Other Products in Order" list. If the ratio is 1, then for every 1 product in the "Products" list, there must be 1 product in the "Other Products in Order" list. If the ratio is 0, then the ratio is unlimited. ',
-        'OtherProductInOrderProducts' => 'Other Products in the Order must be in this list of products. To edit this list directly, please remove all product groups and custom list selections in the \'Other Products in Order\' tab.',
+        'OtherProductInOrderProducts' => "Other Products in the Order must be in this list of products. To edit this list directly, please remove all product groups and custom list selections in the 'Other Products in Order' tab.",
         'OtherProductInOrderProductGroups' => 'Other Products in the Order must be listed in this list of product groups. ',
         'OtherProductInOrderCustomProductLists' => 'Other Products in the Order must be listed in this list of custom product lists. ',
     ];
@@ -239,6 +239,7 @@ class DiscountCouponOption extends DataObject
      *  @var int
      */
     private static int $default_valid_length_in_days = 7;
+
     /**
      * standard SS variable.
      */
@@ -272,7 +273,7 @@ class DiscountCouponOption extends DataObject
         return _t('DiscountCouponOption.SINGULAR_NAME', 'Discount Coupon');
     }
 
-    public function i18n_plural_name(): string
+    public function plural_name(): string
     {
         return _t('DiscountCouponOption.PLURAL_NAME', 'Discount Coupons');
     }
@@ -324,14 +325,17 @@ class DiscountCouponOption extends DataObject
         if (! $this->NumberOfTimesCouponCanBeUsed) {
             return false;
         }
+
         if ($this->getUseCount() > $this->NumberOfTimesCouponCanBeUsed) {
             return false;
         }
+
         $now = strtotime('now');
         $startDate = strtotime((string) $this->StartDate);
         if ($now < $startDate) {
             return false;
         }
+
         //include the end date itself.
         if ($this->EndDate) {
             $endDate = strtotime((string) $this->EndDate) + (60 * 60 * 24);
@@ -339,10 +343,11 @@ class DiscountCouponOption extends DataObject
                 return false;
             }
         }
+
         $additionalChecks = $this->extend('checkForAdditionalValidity');
         if (is_array($additionalChecks) && count($additionalChecks)) {
             foreach ($additionalChecks as $additionalCheck) {
-                if (!($additionalCheck || $additionalCheck === null)) {
+                if (!$additionalCheck && $additionalCheck !== null) {
                     return false;
                 }
             }
@@ -426,9 +431,10 @@ class DiscountCouponOption extends DataObject
      */
     public function canDelete($member = null)
     {
-        if ($this->UseCount()) {
+        if ($this->UseCount() !== 0) {
             return false;
         }
+
         if (Permission::checkMember($member, Config::inst()->get(EcommerceRole::class, 'admin_permission_code'))) {
             return true;
         }
@@ -449,6 +455,7 @@ class DiscountCouponOption extends DataObject
                 $field->setDescription($fieldLabels[$name]);
             }
         }
+
         if ($this->ApplyEvenWithoutCode) {
             $fields->removeFieldsFromTab(
                 'Root.Main',
@@ -461,8 +468,8 @@ class DiscountCouponOption extends DataObject
         $fields->addFieldsToTab(
             'Root.Main',
             [
-                new ReadonlyField('UseCount', self::$field_labels['UseCount']),
-                new ReadonlyField('IsValidNice', self::$field_labels['IsValidNice'])
+                ReadonlyField::create('UseCount', self::$field_labels['UseCount']),
+                ReadonlyField::create('IsValidNice', self::$field_labels['IsValidNice'])
             ]
         );
         if ($this->ApplyPercentageToApplicableProducts) {
@@ -476,6 +483,7 @@ class DiscountCouponOption extends DataObject
                 } else {
                     $gridField1->setConfig(GridFieldConfigForProducts::create());
                 }
+
                 $fields->addFieldToTab('Root.DiscountedProducts', $gridField1);
             }
 
@@ -484,11 +492,13 @@ class DiscountCouponOption extends DataObject
                 $gridField2->setConfig(GridFieldConfigForProductGroups::create());
                 $fields->addFieldToTab('Root.DiscountedProducts', $gridField2);
             }
+
             $gridField3 = $fields->dataFieldByName('CustomProductLists');
             if ($gridField3) {
                 $gridField3->setConfig(GridFieldConfigForCustomLists::create());
                 $fields->addFieldToTab('Root.DiscountedProducts', $gridField3);
             }
+
             if ($this->ProductsAddedThroughLists()) {
                 $fields->addFieldsToTab(
                     'Root.DiscountedProducts',
@@ -516,6 +526,7 @@ class DiscountCouponOption extends DataObject
                 $fields->removeByName('ProductGroupsMustAlsoBePresentIn');
                 $fields->removeByName('CustomProductListsMustAlsoBePresentIn');
             }
+
             if ($this->RequiresProductCombinationInOrder) {
                 $fields->addFieldsToTab(
                     'Root.DiscountedProducts',
@@ -538,18 +549,14 @@ class DiscountCouponOption extends DataObject
                 );
                 $fields->addFieldsToTab('Root.OrderMustAlsoHave', [
                     $fields->dataFieldByName('RequiresProductCombinationInOrder'),
-                    new DropdownField(
-                        'ProductCombinationRatio',
-                        $this->config()->get('field_labels')['ProductCombinationRatio'],
-                        [
-                            0 => 'unlimited',
-                            1 => '1:1',
-                            2 => '2:1',
-                            3 => '3:1',
-                            4 => '4:1',
-                            5 => '5:1',
-                        ]
-                    )
+                    DropdownField::create('ProductCombinationRatio', $this->config()->get('field_labels')['ProductCombinationRatio'], [
+                        0 => 'unlimited',
+                        1 => '1:1',
+                        2 => '2:1',
+                        3 => '3:1',
+                        4 => '4:1',
+                        5 => '5:1',
+                    ])
                 ]);
                 $gridField6 = $fields->dataFieldByName('OtherProductInOrderProducts');
                 if ($gridField6) {
@@ -558,8 +565,10 @@ class DiscountCouponOption extends DataObject
                     } else {
                         $gridField6->setConfig(GridFieldConfigForProducts::create());
                     }
+
                     $fields->addFieldToTab('Root.OrderMustAlsoHave', $gridField6);
                 }
+
                 $gridField7 = $fields->dataFieldByName('OtherProductInOrderProductGroups');
                 if ($gridField7) {
                     $gridField7->setConfig(GridFieldConfigForProductGroups::create());
@@ -576,10 +585,11 @@ class DiscountCouponOption extends DataObject
                 ]);
                 $fields->removeByName('ProductCombinationRatio');
             }
+
             if ($this->exists()) {
                 $fields->insertBefore(
                     'DiscountedProducts',
-                    new Tab('Price', 'Price'),
+                    Tab::create('Price', 'Price'),
                 );
             }
         } else {
@@ -642,21 +652,25 @@ class DiscountCouponOption extends DataObject
             if ($this->thereAreCouponsWithTheSameCode()) {
                 $validator->addError(_t('DiscountCouponOption.CODEALREADYEXISTS', 'This code already exists - please use another code.'));
             }
+
             if (strtotime((string) $this->StartDate) < strtotime('-12 years')) {
                 $validator->addFieldError(
                     'StartDate',
                     _t('DiscountCouponOption.NOSTARTDATE', 'Please enter a start date')
                 );
             }
+
             if (strtotime((string) $this->EndDate) < strtotime('-12 years')) {
                 $validator->addFieldError(
                     'EndDate',
                     _t('DiscountCouponOption.NOENDDATE', 'Please enter an end date')
                 );
             }
+
             if (strtotime((string) $this->EndDate) < strtotime((string) $this->StartDate)) {
                 $validator->addError(_t('DiscountCouponOption.ENDDATETOOEARLY', 'The end date should be after the start date'));
             }
+
             if ($this->DiscountPercentage < 0 || $this->DiscountPercentage > 99.999) {
                 $validator->addFieldError(
                     'DiscountPercentage',
@@ -664,6 +678,7 @@ class DiscountCouponOption extends DataObject
                 );
             }
         }
+
         if (null === $this->NumberOfTimesCouponCanBeUsed || '' === $this->NumberOfTimesCouponCanBeUsed) {
             $validator->addFieldError(
                 'NumberOfTimesCouponCanBeUsed',
@@ -683,23 +698,27 @@ class DiscountCouponOption extends DataObject
         if (! $this->Code) {
             $this->Code = $this->createRandomCode();
         }
+
         $this->Code = preg_replace('#[^a-z0-9]#i', ' ', (string) $this->Code);
-        $this->Code = trim(preg_replace('#\s+#', '', (string) $this->Code));
+        $this->Code = trim((string) preg_replace('#\s+#', '', (string) $this->Code));
 
         $i = 1;
         while ($this->thereAreCouponsWithTheSameCode() && $i < 100) {
             ++$i;
             $this->Code .= '_' . $i;
         }
+
         if (strlen(trim((string) $this->Title)) < 1) {
             $this->Title = $this->Code;
         }
+
         if ($this->ApplyPercentageToApplicableProducts) {
             //we have removed this!
             //$this->DiscountAbsolute = 0;
         } else {
             $this->ApplyEvenWithoutCode = 0;
         }
+
         if (! $this->StartDate) {
             $this->StartDate = date('Y-m-d');
         }
@@ -708,6 +727,7 @@ class DiscountCouponOption extends DataObject
             $validLength = $this->config()->get('default_valid_length_in_days');
             $this->EndDate = date('Y-m-d', strtotime(date('Y-m-d') . $validLength . 'days'));
         }
+
         $this->LastEdited = date('Y-m-d H:i:s');
     }
 
@@ -745,7 +765,8 @@ class DiscountCouponOption extends DataObject
                     }
                 }
             }
-            if (empty($productsArray)) {
+
+            if ($productsArray === []) {
                 $productsArray = $this->Products()->columnUnique() ?? [];
             }
 
@@ -761,6 +782,7 @@ class DiscountCouponOption extends DataObject
                     $mustAlsoBePresentInProductsArray = array_merge($mustAlsoBePresentInProductsArray, $mustAlsoBePresentInProducts->columnUnique());
                 }
             }
+
             $mustAlsoBePresentInCustomProductLists = $this->CustomProductListsMustAlsoBePresentIn();
             /** @var CustomProductList $mustAlsoBePresentInCustomProductList */
             foreach ($mustAlsoBePresentInCustomProductLists as $mustAlsoBePresentInCustomProductList) {
@@ -770,10 +792,11 @@ class DiscountCouponOption extends DataObject
                     $mustAlsoBePresentInProductsArray = array_intersect($mustAlsoBePresentInProductsArray, $mustAlsoBePresentInProducts->columnUnique());
                 }
             }
+
             if ($isLimited) {
                 $mustAlsoBePresentInProductsArray = array_unique($mustAlsoBePresentInProductsArray);
                 $productsArray = array_intersect($mustAlsoBePresentInProductsArray, $productsArray);
-                if (empty($productsArray)) {
+                if ($productsArray === []) {
                     $productsArray = [-1 => -1];
                 }
             }
@@ -807,7 +830,8 @@ class DiscountCouponOption extends DataObject
                     }
                 }
             }
-            if (! empty($otherProductsArray)) {
+
+            if ($otherProductsArray !== []) {
                 $otherProductsArray = array_unique($otherProductsArray);
                 $this->OtherProductInOrderProducts()->setByIDList($otherProductsArray);
             }
@@ -834,9 +858,9 @@ class DiscountCouponOption extends DataObject
     protected function createRandomCode($length = 5, $chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz1234567890'): string
     {
         $chars_length = strlen((string) $chars) - 1;
-        $string = $chars[rand(0, $chars_length)];
+        $string = $chars[random_int(0, $chars_length)];
         for ($i = 1; $i < $length; $i = strlen((string) $string)) {
-            $r = $chars[rand(0, $chars_length)];
+            $r = $chars[random_int(0, $chars_length)];
             if ($r !== $string[$i - 1]) {
                 $string .= $r;
             }
@@ -844,6 +868,7 @@ class DiscountCouponOption extends DataObject
 
         return $string;
     }
+
     public function CMSEditLink($action = null): string
     {
         return CMSEditLinkAPI::find_edit_link_for_object($this, $action);

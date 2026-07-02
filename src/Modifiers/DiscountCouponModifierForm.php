@@ -33,6 +33,7 @@ class DiscountCouponModifierForm extends OrderModifierForm
                 Requirements::javascript($js);
             }
         }
+
         Requirements::themedCSS('client/css/DiscountCouponModifier');
     }
 
@@ -44,7 +45,7 @@ class DiscountCouponModifierForm extends OrderModifierForm
                 $modifiers = $order->Modifiers(DiscountCouponModifier::class);
                 $modifier = $modifiers->First();
                 if ($modifier) {
-                    list($message, $type) = $modifier->updateCouponCodeEntered(Convert::raw2sql($data['DiscountCouponCode']));
+                    [$message, $type] = $modifier->updateCouponCodeEntered(Convert::raw2sql($data['DiscountCouponCode']));
                     $form->sessionMessage($message, $type);
 
                     return ShoppingCart::singleton()->setMessageAndReturn($message, $type);

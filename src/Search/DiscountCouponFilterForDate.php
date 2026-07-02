@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Sunnysideup\EcommerceDiscountCoupon\Search;
 
 use SilverStripe\ORM\DataQuery;
@@ -36,7 +38,8 @@ class DiscountCouponFilterForDate extends ExactMatchFilter
 
                 break;
         }
-        if ($filterString) {
+
+        if ($filterString !== '' && $filterString !== '0') {
             $query = $query->where($filterString);
         }
 
